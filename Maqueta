@@ -1,0 +1,136 @@
+lugar(madrid,     [arte, comida, historia],       [lunes, martes, miercoles, jueves, viernes]).
+lugar(barcelona,  [arquitectura, arte, mar],      [lunes, martes, miercoles, jueves, viernes, sabado]).
+lugar(paris,      [arte, romantico, museos],      [miercoles, jueves, viernes, sabado, domingo]).
+lugar(roma,       [historia, religion, arquitectura], [lunes, martes, miercoles, jueves, viernes]).
+lugar(berlin,     [historia, noche, moderno],     [lunes, miercoles, viernes, sabado]).
+lugar(ibiza,      [historia, arte, comida],       [lunes, martes, viernes, sabado]).
+lugar(monaco,     [arquitectura, noche, moderno], [lunes, martes, miercoles, viernes, domingo]).
+
+% conexiones
+conexion(madrid, barcelona).
+conexion(madrid, paris).
+conexion(roma, berlin).
+conexion(ibiza, paris).
+conexion(ibiza, monaco).
+conexion(monaco, madrid).
+
+% --------- REGLAS ---------
+
+% Conectadas directo (grafo no dirigido)
+conectadas(A, B) :- conexion(A, B).
+conectadas(A, B) :- conexion(B, A).
+
+% Saber si una ciudad está abierta un día
+abierto(Ciudad, Dia) :-
+    lugar(Ciudad, _, Dias),
+    member(Dia, Dias).
+
+% Recomendar lugares según preferencias
+recomendar(Prefs, Lugar) :-
+    lugar(Lugar, Intereses, _),
+    member(P, Prefs),
+    member(P, Intereses).
+
+% Calcular afinidad
+afinidad(Prefs, Ciudad, Afinidad) :-
+    lugar(Ciudad, Intereses, _),
+    findall(P, (member(P, Prefs), member(P, Intereses)), Coincidencias),
+    length(Coincidencias, Afinidad).
+
+% Rutas posibles entre dos ciudades (DFS)
+ruta(Inicio, Fin, Ruta) :-
+    ruta_aux(Inicio, Fin, [Inicio], Ruta).
+
+ruta_aux(Fin, Fin, Visitados, Ruta) :-
+    reverse(Visitados, Ruta).
+
+ruta_aux(Actual, Fin, Visitados, Ruta) :-
+    conectadas(Actual, Siguiente),
+    \+ member(Siguiente, Visitados),
+    ruta_aux(Siguiente, Fin, [Siguiente|Visitados], Ruta).
+
+% Rutas solo por ciudades abiertas
+ruta_abiertos(Dia, Inicio, Fin, Ruta) :-
+    ruta_abiertos_aux(Dia, Inicio, Fin, [Inicio], Ruta).
+
+ruta_abiertos_aux(Dia, Fin, Fin, Visitados, Ruta) :-
+    abierto(Fin, Dia),
+    reverse(Visitados, Ruta).
+
+ruta_abiertos_aux(Dia, Actual, Fin, Visitados, Ruta) :-
+    abierto(Actual, Dia),
+    conectadas(Actual, Siguiente),
+    abierto(Siguiente, Dia),
+    \+ member(Siguiente, Visitados),
+    ruta_abiertos_aux(Dia, Siguiente, Fin, [Siguiente|Visitados], Ruta).
+
+% Guardar rutas en archivo
+registrar_viaje(Origen, Destino, Rutas, RutasAbiertas, Archivo) :-
+    open(Archivo, append, Stream),
+    write(Stream, 'Nuevo viaje registrado!\n'),
+    format(Stream, "Ciudad de SALIDA: ~w\n", [Origen]),
+    format(Stream, "Ciudad de DESTINO: ~w\n", [Destino]),
+    write(Stream, "Ruta(s) recomendada(s):\n"),
+    ( Rutas = [] -> write(Stream, " - No existen rutas.\n")
+    ; forall(member(R, Rutas), (atomic_list_concat(R, ' -> ', Cadena), format(Stream, " ~w\n", [Cadena])))
+    ),
+    write(Stream, "Ruta(s) por lugar(es) abiertos:\n"),
+    ( RutasAbiertas = [] -> write(Stream, " - No existen rutas con ciudades abiertas.\n")
+    ; forall(member(RA, RutasAbiertas), (atomic_list_concat(RA, ' -> ', Cadena2), format(Stream, " ~w\n", [Cadena2])))
+    ),
+    write(Stream, "---------------------------------------\n\n"),
+    close(Stream).
+
+% --------- PROCESO INTERACTIVO ---------
+process :-
+    writeln("==============================="),
+    writeln(" Sistema Turístico Interactivo "),
+    writeln("==============================="),
+
+    writeln("\nEstas son las ciudades disponibles:"),
+    forall(lugar(C,_,_), writeln(C)),
+
+    writeln("\nIngresa el día (ej: lunes, martes, miercoles...):"),
+    read(Dia),
+
+    writeln("\nCiudades abiertas hoy:"),
+    (   forall((lugar(C,_,_), abierto(C, Dia)), writeln(C))
+    ->  true ; writeln(" - Ninguna ciudad abierta")
+    ),
+
+    writeln("\nEscribe una preferencia (ej: arte, historia, comida...):"),
+    read(Filtro),
+
+    writeln("\nCiudades recomendadas con ese filtro:"),
+    (   forall(recomendar([Filtro], C), writeln(C))
+    ->  true ; writeln(" - Ninguna coincide con esa preferencia")
+    ),
+
+    writeln("\nIngresa la ciudad de SALIDA:"),
+    read(Origen),
+    writeln("Ingresa la ciudad de DESTINO:"),
+    read(Destino),
+
+    findall(R, ruta(Origen, Destino, R), Rutas),
+    findall(RA, ruta_abiertos(Dia, Origen, Destino, RA), RutasAbiertas),
+
+    (Rutas = [] -> writeln("\nNo existe ruta entre esas ciudades.")
+    ; (writeln("\nRuta(s) encontrada(s):"),
+       forall(member(R, Rutas), (atomic_list_concat(R, ' -> ', Cadena), writeln(Cadena))))
+    ),
+
+    (RutasAbiertas = [] -> writeln("\nNo hay rutas que pasen por ciudades abiertas hoy.")
+    ; (writeln("\nRuta(s) abiertas encontradas:"),
+       forall(member(RA, RutasAbiertas), (atomic_list_concat(RA, ' -> ', Cadena2), writeln(Cadena2))))
+    ),
+
+    registrar_viaje(Origen, Destino, Rutas, RutasAbiertas, 'Registro_Viajes.txt'),
+    writeln("\nTu viaje ha sido registrado en 'Registro_Viajes.txt'."),
+    writeln("¡Buen viaje!").
+
+% --------- MAIN ---------
+main :-
+    process,
+    halt.
+
+:- main.
