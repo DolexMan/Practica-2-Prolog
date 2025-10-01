@@ -8,8 +8,6 @@ conexion(ibiza, paris).
 conexion(ibiza, monaco).
 conexion(monaco, madrid).
 
-intereses(paris,iglesia).
-
 diaAbierto(lunes,[madrid,barcelona,roma,berlin,ibiza,monaco]).
 diaAbierto(martes,[madrid,barcelona,roma,ibiza,monaco]).
 diaAbierto(miercoles,[madrid,barcelona,paris,roma,berlin,monaco]).
