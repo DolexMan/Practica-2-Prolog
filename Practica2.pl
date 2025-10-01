@@ -1,0 +1,1 @@
+decirHolamundo :- write('Hola Mundo').
